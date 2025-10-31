@@ -1,0 +1,37 @@
+name: Update update.json on release
+
+on:
+  release:
+    types: [published, edited]
+
+jobs:
+  update-json:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update update.json
+        shell: bash
+        run: |
+          VERSION=${{ github.event.release.tag_name }}
+          CLEAN_VERSION=${VERSION#v} # remove 'v'
+          FILE=update.json
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${VERSION}/BMTB_Installer_${CLEAN_VERSION}.exe"
+          jq --arg ver "$CLEAN_VERSION" --arg url "$DOWNLOAD_URL" \
+            '.latest_version = $ver | .url = $url' "$FILE" > tmp.json && mv tmp.json "$FILE"
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add update.json
+          git commit -m "Auto-update update.json for release ${{ github.event.release.tag_name }}" || echo "No changes to commit"
+          git push origin main
+
